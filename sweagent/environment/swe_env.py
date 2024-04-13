@@ -1,3 +1,4 @@
+from doctest import debug
 from pathlib import Path
 import random
 import config
@@ -19,6 +20,8 @@ from rich.logging import RichHandler
 from simple_parsing.helpers.serialization.serializable import FrozenSerializable
 import yaml
 from sweagent.environment.utils import (
+    PROCESS_DONE_MARKER_END,
+    PROCESS_DONE_MARKER_START,
     copy_file_to_container,
     format_trajectory_markdown,
     get_container,
@@ -421,11 +424,15 @@ class SWEEnv(gym.Env):
         input: str,
         timeout_duration=25,
     ) -> str:
+
+        command_suffix = f"echo {PROCESS_DONE_MARKER_START}$?{PROCESS_DONE_MARKER_END}\n"
         try:
             self.returncode = None
             cmd = input if input.endswith("\n") else input + "\n"
+            cmd += command_suffix
+            print(cmd)
             os.write(self.container.stdin.fileno(), cmd.encode())
-            time.sleep(0.1)
+            time.sleep(0.03)
             self.container.stdin.flush()
         except BrokenPipeError:
             traceback.print_exc()
@@ -433,17 +440,9 @@ class SWEEnv(gym.Env):
                 "Failed to communicate with container. Check docker logs for more information."
             )
             raise RuntimeError("Failed to communicate with container")
-        try:
-            buffer = read_with_timeout(self.container, self.get_pids, timeout_duration)
-            self.container.stdin.write("echo $?\n")
-            time.sleep(0.1)
-            self.container.stdin.flush()
-            exit_code = read_with_timeout(self.container, self.get_pids, 5).strip()
-        except Exception as e:
-            self.logger.error(f"Read with timeout failed on input:\n---\n{input}\n---")
-            raise e
-        if not exit_code.isdigit():
-            raise RuntimeError(f"Container crashed. Failed to get exit code. Output:\n---\n{buffer}\n---")
+
+        buffer, exit_code = read_with_timeout(self.container, timeout_duration) 
+        print(f"{buffer=}, {exit_code=}")
         self.returncode = int(exit_code)
         return buffer
 
@@ -468,8 +467,10 @@ class SWEEnv(gym.Env):
         Returns:
             output (`str`) - output from container
         """
+        
         if input.strip() != "exit":
             output, valid = self._check_syntax(input)
+            
             if not valid:
                 return output  # shows syntax errors
             output = self._communicate(
@@ -506,6 +507,7 @@ class SWEEnv(gym.Env):
         """
         Gets list of processes running inside docker container
         """
+        
         pids = (
             self.container_obj.exec_run("ps -eo pid,comm --no-headers")
             .output.decode()
@@ -514,6 +516,7 @@ class SWEEnv(gym.Env):
         pids = [x.split() for x in pids if x]
         if not all_pids:
             pids = [x for x in pids if x[1] != "ps" and x[0] not in self.parent_pids]
+        
         return pids
 
     def get_submission(self, action, output: str) -> str:
@@ -728,7 +731,7 @@ class SWEEnv(gym.Env):
             if pid not in self.parent_pids and cmd != "ps":
                 self.container_obj.exec_run(f"kill -9 {pid}")
         try:
-            _ = read_with_timeout(self.container, self.get_pids, 20)
+            _ = read_with_timeout(self.container, 20)
         except TimeoutError:
             pass
         try:

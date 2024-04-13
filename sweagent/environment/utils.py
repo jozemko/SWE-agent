@@ -1,3 +1,4 @@
+from multiprocessing import Value
 import shlex
 import docker
 import json
@@ -86,7 +87,11 @@ def copy_file_to_container(container, contents, container_path):
             os.remove(temp_file_name)
 
 
-def read_with_timeout(container, pid_func, timeout_duration):
+PROCESS_DONE_MARKER_START = "///PROCESS-DONE:"
+PROCESS_DONE_MARKER_END= ":PROCESS-DONE///"
+PROCESS_DONE_REGEX = re.compile(rf"{PROCESS_DONE_MARKER_START}(.+?){PROCESS_DONE_MARKER_END}")
+
+def read_with_timeout(container, timeout_duration):
     """
     Read data from a subprocess with a timeout.
     This function uses a file descriptor to read data from the subprocess in a non-blocking way.
@@ -107,26 +112,27 @@ def read_with_timeout(container, pid_func, timeout_duration):
     end_time = time.time() + timeout_duration
 
     while time.time() < end_time:
-        pids = pid_func()
-        if len(pids) > 0:
-            # There are still PIDs running
-            time.sleep(0.05)
-            continue
-        ready_to_read, _, _ = select.select([fd], [], [], 0.1)
+        ready_to_read, _, _ = select.select([fd], [], [], 0.01)
         if ready_to_read:
             data = os.read(fd, 4096)
             if data:
                 buffer += data
-        else:
-            # No more data to read
+        if PROCESS_DONE_MARKER_START in buffer.decode():
             break
-        time.sleep(0.05)  # Prevents CPU hogging
+        time.sleep(0.01)  # Prevents CPU hogging
 
     if container.poll() is not None:
         raise RuntimeError("Subprocess exited unexpectedly.\nCurrent buffer: {}".format(buffer.decode()))
     if time.time() >= end_time:
-        raise TimeoutError("Timeout reached while reading from subprocess.\nCurrent buffer: {}\nRunning PIDs: {}".format(buffer.decode(), pids))
-    return buffer.decode()
+        raise TimeoutError("Timeout reached while reading from subprocess.\nCurrent buffer: {}".format(buffer.decode()))
+    decoded = buffer.decode()
+    body = "\n".join(line for line in decoded.splitlines() if not line.startswith(PROCESS_DONE_MARKER_START))
+    last_line = decoded.splitlines()[-1]
+    _results = PROCESS_DONE_REGEX.search(last_line)
+    if _results is None:
+        raise ValueError(f"Could not find process done marker in last line: {last_line=}, {body=}")
+    exit_code = _results.group(1)
+    return body, exit_code
 
 
 class timeout:
