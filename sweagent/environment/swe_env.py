@@ -36,6 +36,7 @@ from swebench import (
     MAP_VERSION_TO_INSTALL
 )
 from typing import Optional, Tuple
+from sweagent.utils import debug_time
 
 LONG_TIMEOUT = 500
 PATH_TO_REQS = "/root/requirements.txt"
@@ -421,6 +422,7 @@ class SWEEnv(gym.Env):
         input: str,
         timeout_duration=25,
     ) -> str:
+        debug_time("start _communicate")
         try:
             self.returncode = None
             cmd = input if input.endswith("\n") else input + "\n"
@@ -433,6 +435,7 @@ class SWEEnv(gym.Env):
                 "Failed to communicate with container. Check docker logs for more information."
             )
             raise RuntimeError("Failed to communicate with container")
+        debug_time("done write")
         try:
             buffer = read_with_timeout(self.container, self.get_pids, timeout_duration)
             self.container.stdin.write("echo $?\n")
@@ -445,6 +448,7 @@ class SWEEnv(gym.Env):
         if not exit_code.isdigit():
             raise RuntimeError(f"Container crashed. Failed to get exit code. Output:\n---\n{buffer}\n---")
         self.returncode = int(exit_code)
+        debug_time("done read")
         return buffer
 
     def _check_syntax(self, input: str):
@@ -468,8 +472,10 @@ class SWEEnv(gym.Env):
         Returns:
             output (`str`) - output from container
         """
+        debug_time("start communicate")
         if input.strip() != "exit":
             output, valid = self._check_syntax(input)
+            debug_time("done check syntax")
             if not valid:
                 return output  # shows syntax errors
             output = self._communicate(
@@ -506,6 +512,7 @@ class SWEEnv(gym.Env):
         """
         Gets list of processes running inside docker container
         """
+        debug_time("start get_pids")
         pids = (
             self.container_obj.exec_run("ps -eo pid,comm --no-headers")
             .output.decode()
@@ -514,6 +521,7 @@ class SWEEnv(gym.Env):
         pids = [x.split() for x in pids if x]
         if not all_pids:
             pids = [x for x in pids if x[1] != "ps" and x[0] not in self.parent_pids]
+        debug_time("done get_pids")
         return pids
 
     def get_submission(self, action, output: str) -> str:

@@ -1,4 +1,3 @@
-import datetime
 import json
 import re
 import logging
@@ -8,6 +7,7 @@ from pathlib import Path
 from simple_parsing.helpers.fields import field
 from simple_parsing.helpers.serialization.serializable import FrozenSerializable
 from simple_parsing.helpers.flatten import FlattenedAccess
+from sweagent.utils import debug_time
 from sweagent.agent.commands import Command, ParseCommand
 from sweagent.agent.history_processors import HistoryProcessor
 from sweagent.agent.models import (
@@ -23,23 +23,11 @@ from sweagent.environment.swe_env import SWEEnv
 from tenacity import RetryError
 from typing import Dict, List, Optional, Tuple, Any
 from typing import Optional, Tuple, Any
-from inspect import currentframe
 
 logger = logging.getLogger(LOGGER_NAME)
 
 
 
-_LAST_TIME = datetime.datetime.now()
-
-
-def debug_time(name=""):
-    """Display time delta at line number"""
-    cf = currentframe()
-    line_no = cf.f_back.f_lineno
-    global _LAST_TIME
-    time_delta = datetime.datetime.now() - _LAST_TIME
-    _LAST_TIME = datetime.datetime.now()
-    logger.debug(f"Time: {time_delta} at line {line_no} ({name=})") 
 
 
 @dataclass(frozen=True)
