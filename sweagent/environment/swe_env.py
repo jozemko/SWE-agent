@@ -26,7 +26,6 @@ from sweagent.environment.utils import (
     get_gh_issue_data,
     get_instances,
     parse_gh_issue_url,
-    parse_gh_repo_url,
     read_with_timeout,
     LOGGER_NAME,
 )
@@ -769,12 +768,11 @@ class SWEEnv(gym.Env):
             raise RuntimeError("Failed to interrupt container")
 
 
-    def open_pr(self, *, trajectory, push_gh_repo_url: Optional[str] = None, _dry_run: bool=False):
+    def open_pr(self, *, trajectory, _dry_run: bool=False):
         """Create PR to repository
         
         Args:
             trajectory: Trajectory of actions taken by the agent
-            push_gh_repo_url: URL of the repository to push the PR branch to
             _dry_run: Whether to actually push anything or just simulate it
         """
         logger.info("Opening PR")
@@ -805,18 +803,21 @@ class SWEEnv(gym.Env):
             error_msg="Failed to commit changes",
             timeout_duration=10,
         )
-        # If users want to push to a fork, we add a new remote and push to that
-        # otherwise, we push to 'origin' which has already been set up
+
+        owner, repo, _ = parse_gh_issue_url(issue_url)
+        # If `--repo_path` was specified with a different github URL, then the record will contain
+        # the forking user
+        assert self.record is not None
+        forker, _ = self.record["repo"].split("/")
+        head = branch_name
         remote = "origin"
-        if not push_gh_repo_url:
-            owner, repo, _ = parse_gh_issue_url(issue_url)
-        else:
-            owner, repo = parse_gh_repo_url(push_gh_repo_url)
-        if push_gh_repo_url:
+        if forker != owner:
+            head = f"{forker}:{branch_name}"
             token_prefix = ""
             if self._github_token:
                 token_prefix = f"{self._github_token}@"
-            fork_url = f"https://{token_prefix}github.com/{owner}/{repo}.git"
+            fork_url = f"https://{token_prefix}github.com/{forker}/{repo}.git"
+            logger.debug(f"Using fork: {fork_url}")
             self.communicate_with_handling(
                 input=f"git remote add fork {fork_url}",
                 error_msg="Failed to create new git remote",
@@ -832,8 +833,6 @@ class SWEEnv(gym.Env):
             ),
             timeout_duration=10,
         )
-
-        # todo: add representation of trajectory to PR body
         body =  (
             f"This is a PR opened by AI tool [SWE Agent](https://github.com/princeton-nlp/SWE-agent/) " 
             f"to close [#{issue.number}]({issue_url}) ({issue.title}).\n\nCloses #{issue.number}."
@@ -845,7 +844,7 @@ class SWEEnv(gym.Env):
                 owner=owner,
                 repo=repo,
                 title=f"SWE-agent[bot] PR to fix: {issue.title}",
-                head=branch_name,
+                head=head,
                 base="main",
                 body=body,
                 draft=True,
