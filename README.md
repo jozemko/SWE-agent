@@ -36,9 +36,37 @@ If you found this work helpful, please consider using the following citation:
 }
 ```
 
-### ✨ Use SWE-agent as a dev tool
+### ✨ Why SWE-agent
 
-We provide a command line tool and a graphical web interface:
+<table>
+<thead>
+<tr>
+<th>I&#39;m a dev who wants to use SWE-agent as a tool</th>
+<th>I&#39;m doing research on agents &amp; benchmarks</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td colspan="2" align="center">✅ Easy installation, batteries included</td>
+</tr>
+<tr>
+<td colspan="2" align="center">✅ Fully documented</td>
+</tr>
+<tr>
+<td>✅ Behavior can be modified by config files</td>
+</tr>
+<tr>
+<td>✅ Graphical user interface in the browser</td>
+<td>✅ First-class integration with SWE-bench</td>
+</tr>
+<tr>
+<td colspan="2" align="center">✅ Stable &amp; tested</td>
+</tr>
+</tbody>
+</table>
+
+
+
 
 ![My Movie 3](https://github.com/princeton-nlp/SWE-agent/assets/13602468/fa201621-ec31-4644-b658-c1d0feb92253)
 
