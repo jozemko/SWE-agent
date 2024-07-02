@@ -139,7 +139,9 @@ _scroll_warning_message() {
     if [ $SCROLL_COUNT -ge ${WARN_AFTER_SCROLLING_TIMES:-3} ]; then
         echo ""
         echo "WARNING: Scrolling many times in a row is very inefficient."
+        echo "If you want to navigate to a specific line, use the \`goto <line_number>\` command."
         echo "If you know what you are looking for, use \`search_file <pattern>\` instead."
+        echo "If you want to get an overview of the file, use the \`filemap <file>\` command."
         echo ""
     fi
 }
