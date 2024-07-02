@@ -114,7 +114,10 @@ edit() {
         export CURRENT_LINE=$(( ((end_line - start_line + 1) / 2) + start_line ))
         export WINDOW=$((end_line - start_line + 10))
 
-        echo "This is the original code before your edit"
+        echo "This is the original code before your edit."
+        local start_line_ob=$((start_line + 1))
+        echo "Your last edit command tried to replace lines $start_line_ob (inclusive) through $end_line."
+        echo "Please carefully check that those are the right lines to edit."
         echo "-------------------------------------------------"
         _constrain_line
         _print
@@ -125,7 +128,10 @@ edit() {
         export WINDOW=$original_window
 
         echo "Your changes have NOT been applied. Please fix your edit command and try again."
-        echo "You either need to 1) Specify the correct start/end line arguments or 2) Correct your edit code."
+        echo "You need to either"
+        echo "1) Specify the correct start/end line arguments. Even if the error mentions syntax errors or indentation errors, this is the most frequent cause of errors."
+        echo "2) Correct your edit code (please make sure that the start/end line arguments are correct first)."
+        echo "3) Try using several incremental smaller edits instead of one large edit."
         echo "DO NOT re-run the same failed edit command. Running it again will lead to the same error."
     fi
 
