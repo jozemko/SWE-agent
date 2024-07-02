@@ -46,8 +46,10 @@ edit() {
         return
     fi
 
-    local linter_cmd="flake8 --isolated --select=F821,F822,F831,E111,E112,E113,E999,E902"
+    local linter_cmd="flake8 --isolated --select=F822,F831,E111,E112,E113,E999,E902"
+    local linter_cmd_no_block="flake8 --isolated --select=F821"
     local linter_before_edit=$($linter_cmd "$CURRENT_FILE" 2>&1)
+    local linter_no_block_before_edit=$($linter_cmd_no_block "$CURRENT_FILE" 2>&1)
 
     # Bash array starts at 0, so let's adjust
     local start_line=$((start_line - 1))
@@ -74,6 +76,8 @@ edit() {
     if [[ $CURRENT_FILE == *.py ]]; then
         _lint_output=$($linter_cmd "$CURRENT_FILE" 2>&1)
         lint_output=$(_split_string "$_lint_output" "$linter_before_edit" "$((start_line+1))" "$end_line" "$line_count")
+        _lint_output_no_block=$($linter_cmd_no_block "$CURRENT_FILE" 2>&1)
+        lint_output_no_block=$(_split_string "$_lint_output_no_block" "$linter_no_block_before_edit" "$((start_line+1))" "$end_line" "$line_count")
     else
         # do nothing
         lint_output=""
@@ -84,8 +88,15 @@ edit() {
         export CURRENT_LINE=$start_line
         _constrain_line
         _print
-
         echo "File updated. Please review the changes and make sure they are correct (correct indentation, no duplicate lines, etc). Edit the file again if necessary."
+        if [ ! -z "$lint_output_no_block" ]; then
+            echo ""
+            echo "WARNING: Your changes have been applied, but the following warnings were issued:"
+            echo "$lint_output_no_block"
+            echo "Please fix these issues with the next edit if necessary."
+            echo ""
+        fi
+
     else
         echo "Your proposed edit has introduced new syntax error(s). Please read this error message carefully and then retry editing the file."
         echo ""
