@@ -47,7 +47,7 @@ edit() {
     fi
 
     local linter_cmd="flake8 --isolated --select=F822,F831,E111,E112,E113,E999,E902"
-    local linter_cmd_no_block="flake8 --isolated --select=F821"
+    local linter_cmd_no_block="flake8 --isolated --select=F821,F822,F831,E111,E112,E113,E999,E902"
     local linter_before_edit=$($linter_cmd "$CURRENT_FILE" 2>&1)
     local linter_no_block_before_edit=$($linter_cmd_no_block "$CURRENT_FILE" 2>&1)
 
@@ -75,9 +75,9 @@ edit() {
     # Run linter
     if [[ $CURRENT_FILE == *.py ]]; then
         _lint_output=$($linter_cmd "$CURRENT_FILE" 2>&1)
-        lint_output=$(_split_string "$_lint_output" "$linter_before_edit" "$((start_line+1))" "$end_line" "$line_count")
+        lint_output=$(_split_string "$_lint_output" --previous "$linter_before_edit" --window "$((start_line+1))" "$end_line" --n-lines "$line_count")
         _lint_output_no_block=$($linter_cmd_no_block "$CURRENT_FILE" 2>&1)
-        lint_output_no_block=$(_split_string "$_lint_output_no_block" "$linter_no_block_before_edit" "$((start_line+1))" "$end_line" "$line_count")
+        lint_output_no_block=$(_split_string "$_lint_output_no_block" --previous "$linter_no_block_before_edit" --window "$((start_line+1))" "$end_line" --n-lines "$line_count" --line-numbers)
     else
         # do nothing
         lint_output=""
@@ -93,7 +93,7 @@ edit() {
             echo ""
             echo "WARNING: Your changes have been applied, but the following warnings were issued:"
             echo "$lint_output_no_block"
-            echo "Please fix these issues with the next edit if necessary."
+            echo "It is very important that you fix these issues with the next edit."
             echo ""
         fi
 

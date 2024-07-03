@@ -1,22 +1,10 @@
 #!/usr/bin/env python3
 
-"""This helper command is used to print flake8 output
-
-Usage:
-    python _split_string.py <flake8_output>
-    python _split_string.py <flake8_output> <previous_errors> <edit_window_start> <edit_window_end> <n_lines>
-
-Where:
-    <flake8_output> is the output of flake8
-    <previous_errors> is the previous errors as a string
-    <edit_window_start> is the start of the edit window
-    <edit_window_end> is the end of the edit window
-    <n_lines> is the number of lines added in the edit
-"""
+"""This helper command is used to print flake8 output"""
 
 from __future__ import annotations
 
-import sys
+import argparse
 from dataclasses import dataclass
 
 
@@ -101,23 +89,33 @@ def format_flake8_output(
         errors = [error for error in errors if error not in previous_errors]
     for error in errors:
         if not show_line_numbers:
-            lines.append(f"- {error.problem}")
+            line = f"- {error.problem}"
         else:
-            lines.append(f"- {error.line_number}:{error.col_number} {error.problem}")
+            line = f"- {error.line_number}:{error.col_number} {error.problem}"
+        if line not in lines:
+            # Make sure we don't have duplicates
+            lines.append(line)
     return "\n".join(lines)
 
 
 if __name__ == "__main__":
-    if len(sys.argv) == 2:
-        print(format_flake8_output(sys.argv[1]))
-    elif len(sys.argv) == 6:
-        window = (int(sys.argv[3]), int(sys.argv[4]))
-        n_lines = int(sys.argv[5])
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("input_string", type=str, help="The flake8 output as a string")
+    parser.add_argument("--previous", type=str, default="", help="The previous errors as a string")
+    parser.add_argument("--window", type=int, nargs=2, default=None, help="The window of the edit")
+    parser.add_argument("--n-lines", type=int, default=None, help="The number of lines used to replace the text")
+    parser.add_argument("--line-numbers", action="store_true", help="Whether to show line numbers in the output")
+    args = parser.parse_args()
+
+    if not args.previous:
+        print(format_flake8_output(args.input_string))
+    else:
         print(
             format_flake8_output(
-                sys.argv[1], previous_errors_string=sys.argv[2], replacement_window=window, replacement_n_lines=n_lines
+                args.input_string,
+                previous_errors_string=args.previous,
+                replacement_window=args.window,
+                replacement_n_lines=args.n_lines,
+                show_line_numbers=args.line_numbers,
             )
         )
-    else:
-        msg = "Invalid number of arguments. Must be 1 or 5."
-        raise ValueError(msg)
