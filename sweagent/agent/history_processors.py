@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import re
 from abc import abstractmethod
 from dataclasses import dataclass
@@ -43,10 +44,75 @@ class HistoryProcessor(metaclass=HistoryProcessorMeta):
 # DEFINE NEW PARSING FUNCTIONS BELOW THIS LINE
 class DefaultHistoryProcessor(HistoryProcessor):
     def __call__(self, history):
+        """This history processor returns the identical history"""
         return history
 
 
-def last_n_history(history, n):
+class StripFailedEdits(HistoryProcessor):
+    def __init__(self, ignore_if_last_action: bool = False):
+        """Strip output from failed edits"""
+        self._iila = ignore_if_last_action
+
+    def _is_failed_edit(self, entry: dict) -> bool:
+        if entry.get("demo", False):
+            return False
+        if "Your proposed edit has introduced new syntax error" in entry["content"]:
+            return True
+        return False
+
+    def _process_entry(self, entry: dict) -> dict:
+        if self._is_failed_edit(entry):
+            entry["content"] = "Failed edit omitted."
+        return entry
+
+    def __call__(
+        self,
+        history: list[dict],
+    ) -> list[dict]:
+        history = copy.deepcopy(history)
+        if not self._iila:
+            return [self._process_entry(entry) for entry in history]
+        else:
+            return [self._process_entry(entry) for entry in history[:-1]] + [history[-1]]
+
+
+class OnlyNOutputs(HistoryProcessor):
+    def __init__(self, n: int, max_age: int, long_output_char_thld: int):
+        """This is similar to the `LastNObservations`, except that we do not touch any
+        "short" outputs (anything shorter than `long_output_char_thld` characters).
+
+        Starting from the last step, we will keep the output if
+
+        1) We have kept less than `n` outputs so far
+        2) The step is within the last `max_age` steps
+        """
+        self.n = n
+        self.max_age = max_age
+        self.long_output_char_thld = long_output_char_thld
+
+    def _strip_output(self, entry: dict) -> dict:
+        if len(entry["content"]) > self.long_output_char_thld:
+            entry["content"] = f'Old output omitted ({len(entry["content"].splitlines())} lines)'
+        return entry
+
+    def __call__(self, history: list[dict]) -> list[dict]:
+        history = copy.deepcopy(history)
+        n_added = 0
+        new_rev_history = []
+        for age, entry in enumerate(reversed(history)):
+            if entry["role"] != "user" or entry.get("is_demo", False):
+                new_rev_history.append(entry)
+                continue
+            if n_added >= self.n or age >= self.max_age:
+                self._strip_output(entry)
+            else:
+                n_added += 1
+            new_rev_history.append(entry)
+        return list(reversed(new_rev_history))
+
+
+def last_n_history(history: list[dict], n: int) -> list[dict]:
+    """Strip all outputs except for the last n messages"""
     if n <= 0:
         msg = "n must be a positive integer"
         raise ValueError(msg)
