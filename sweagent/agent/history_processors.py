@@ -158,7 +158,7 @@ def last_n_history(history: list[dict], n: int) -> list[dict]:
 
 class Max5ObservationsNoFE(HistoryProcessor):
     def __call__(self, history: list[dict]) -> list[dict]:
-        return MaxNObservations(n=5, max_age=5, long_output_char_thld=200)(StripFailedEdits()(history))
+        return MaxNObservations(n=5, max_age=10, long_output_char_thld=200)(StripFailedEdits()(history))
 
 
 class LastNObservations(HistoryProcessor):
