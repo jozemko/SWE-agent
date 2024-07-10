@@ -29,7 +29,7 @@ class HistoryProcessor(metaclass=HistoryProcessorMeta):
         pass
 
     @abstractmethod
-    def __call__(self, history: list[str]) -> list[str]:
+    def __call__(self, history: list[dict]) -> list[dict]:
         raise NotImplementedError
 
     @classmethod
@@ -49,11 +49,13 @@ class DefaultHistoryProcessor(HistoryProcessor):
 
 
 class StripFailedEdits(HistoryProcessor):
-    def __init__(self, ignore_if_last_action: bool = False):
+    def __init__(self, ignore_if_last_action: bool = True):
         """Strip output from failed edits"""
         self._iila = ignore_if_last_action
 
     def _is_failed_edit(self, entry: dict) -> bool:
+        if entry["role"] != "user":
+            return False
         if entry.get("demo", False):
             return False
         if "Your proposed edit has introduced new syntax error" in entry["content"]:
@@ -62,7 +64,7 @@ class StripFailedEdits(HistoryProcessor):
 
     def _process_entry(self, entry: dict) -> dict:
         if self._is_failed_edit(entry):
-            entry["content"] = "Failed edit omitted."
+            entry["content"] = "Output of failed edit omitted."
         return entry
 
     def __call__(
@@ -76,8 +78,8 @@ class StripFailedEdits(HistoryProcessor):
             return [self._process_entry(entry) for entry in history[:-1]] + [history[-1]]
 
 
-class OnlyNOutputs(HistoryProcessor):
-    def __init__(self, n: int, max_age: int, long_output_char_thld: int):
+class MaxNObservations(HistoryProcessor):
+    def __init__(self, n: int, *, max_age: int, long_output_char_thld: int = 200):
         """This is similar to the `LastNObservations`, except that we do not touch any
         "short" outputs (anything shorter than `long_output_char_thld` characters).
 
@@ -90,29 +92,45 @@ class OnlyNOutputs(HistoryProcessor):
         self.max_age = max_age
         self.long_output_char_thld = long_output_char_thld
 
-    def _strip_output(self, entry: dict) -> dict:
-        if len(entry["content"]) > self.long_output_char_thld:
-            entry["content"] = f'Old output omitted ({len(entry["content"].splitlines())} lines)'
+    def _strip_observation(self, entry: dict) -> dict:
+        entry["content"] = f'Old output omitted ({len(entry["content"].splitlines())} lines)'
         return entry
 
     def __call__(self, history: list[dict]) -> list[dict]:
         history = copy.deepcopy(history)
-        n_added = 0
-        new_rev_history = []
-        for age, entry in enumerate(reversed(history)):
-            if entry["role"] != "user" or entry.get("is_demo", False):
-                new_rev_history.append(entry)
+        new_history = list()
+        user_messages = [entry for entry in history if (entry["role"] == "user" and not entry.get("is_demo", False))]
+        n_user_messages = len(user_messages)
+        n_long_ums = len([entry for entry in user_messages if len(entry["content"]) > self.long_output_char_thld])
+        user_msg_idx = 0
+        n_long_added = 0
+        for entry in history:
+            data = entry.copy()
+            if data["role"] != "user":
+                new_history.append(entry)
                 continue
-            if n_added >= self.n or age >= self.max_age:
-                self._strip_output(entry)
+            if data.get("is_demo", False):
+                new_history.append(entry)
+                continue
             else:
-                n_added += 1
-            new_rev_history.append(entry)
-        return list(reversed(new_rev_history))
+                user_msg_idx += 1
+            if user_msg_idx == 1:
+                # Issue text
+                new_history.append(entry)
+                continue
+            # Will be 0 for last user message, because user_msg_idx is 1-based
+            age = n_user_messages - user_msg_idx
+            n_remaining = n_long_ums - n_long_added
+            if (n_remaining > self.n or age > self.max_age) and len(entry["content"]) > self.long_output_char_thld:
+                self._strip_observation(entry)
+            else:
+                n_long_added += 1
+            new_history.append(entry)
+        return new_history
 
 
 def last_n_history(history: list[dict], n: int) -> list[dict]:
-    """Strip all outputs except for the last n messages"""
+    """Strip all observations except for the last n messages"""
     if n <= 0:
         msg = "n must be a positive integer"
         raise ValueError(msg)
@@ -129,12 +147,18 @@ def last_n_history(history: list[dict], n: int) -> list[dict]:
             continue
         else:
             user_msg_idx += 1
+        # user_msg_idx 1 is the issue template
         if user_msg_idx == 1 or user_msg_idx in range(user_messages - n + 1, user_messages + 1):
             new_history.append(entry)
         else:
             data["content"] = f'Old output omitted ({len(entry["content"].splitlines())} lines)'
             new_history.append(data)
     return new_history
+
+
+class Max5ObservationsNoFE(HistoryProcessor):
+    def __call__(self, history: list[dict]) -> list[dict]:
+        return MaxNObservations(n=5, max_age=5, long_output_char_thld=200)(StripFailedEdits()(history))
 
 
 class LastNObservations(HistoryProcessor):
