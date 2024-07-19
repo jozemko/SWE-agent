@@ -55,9 +55,10 @@ class StripFailedEdits(HistoryProcessor):
     def _is_failed_edit(self, entry: dict) -> bool:
         if entry["role"] != "user":
             return False
-        if entry.get("demo", False):
+        if entry.get("is_demo", False):
             return False
-        if "Your proposed edit has introduced new syntax error" in entry["content"]:
+        search = "Your proposed edit has introduced new syntax error"
+        if search in entry["content"] and entry.get("action", "").startswith("edit "):
             return True
         return False
 
