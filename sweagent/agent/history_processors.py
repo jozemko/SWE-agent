@@ -49,9 +49,8 @@ class DefaultHistoryProcessor(HistoryProcessor):
 
 
 class StripFailedEdits(HistoryProcessor):
-    def __init__(self, ignore_if_last_action: bool = True):
+    def __init__(self):
         """Strip output from failed edits"""
-        self._iila = ignore_if_last_action
 
     def _is_failed_edit(self, entry: dict) -> bool:
         if entry["role"] != "user":
@@ -72,10 +71,8 @@ class StripFailedEdits(HistoryProcessor):
         history: list[dict],
     ) -> list[dict]:
         history = copy.deepcopy(history)
-        if not self._iila:
-            return [self._process_entry(entry) for entry in history]
-        else:
-            return [self._process_entry(entry) for entry in history[:-1]] + [history[-1]]
+        # Never strip the last failed edit
+        return [self._process_entry(entry) for entry in history[:-1]] + [history[-1]]
 
 
 class MaxNObservations(HistoryProcessor):
@@ -177,6 +174,11 @@ class Last2Observations(HistoryProcessor):
 class Last5Observations(HistoryProcessor):
     def __call__(self, history):
         return last_n_history(history, 5)
+
+
+class Last5ObservationsNoFE(HistoryProcessor):
+    def __call__(self, history):
+        return last_n_history(StripFailedEdits()(history), 5)
 
 
 class ClosedWindowHistoryProcessor(HistoryProcessor):
