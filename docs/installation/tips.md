@@ -15,8 +15,9 @@ docker: permission denied while trying to connect to the Docker daemon socket at
 ```
 
 * Make sure that you allow the use of the Docker socket. In Docker desktop, click *Settings* > *Advanced* > *Allow the default Docker socket to be used (requires password)*.
-* On the command line, you can try `sudo chmod 666 /var/run/docker.sock` or add your user to the `docker` linux user group
-* If your docker installation uses a different socket, you might have to symlink them, see [this command for example](https://github.com/princeton-nlp/SWE-agent/issues/20#issuecomment-2047506005)
+* On the command line, you can try `sudo chmod 666 /var/run/docker.sock` or add your user to the `docker` linux user group with `sudo usermod -aG docker ${USER}`.
+* If your docker installation uses a different socket, you might have to symlink them, see [this command for example](https://github.com/princeton-nlp/SWE-agent/issues/20#issuecomment-2047506005).
+* More information in the [docker docs](https://docs.docker.com/engine/install/linux-postinstall/).
 
 If you are using any containers from dockerhub (i.e., you ran `docker pull ...` or you are running `docker run ...`), please make sure that you are using the latest
 versions. Just because an image has the `latest` tag (e.g., `sweagent/swe-agent-run:latest`) does not mean that it will auto-update. Please run
